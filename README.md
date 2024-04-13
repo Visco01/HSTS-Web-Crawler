@@ -11,3 +11,8 @@
 
 ## You should do your best to ensure the representativeness, the correctness and the “reproducibility”
 - Useful paper: [Reproducibility and Replicability of Web Measurement Studies](https://dl.acm.org/doi/abs/10.1145/3485447.3512214)
+
+## Tranco list
+[Python repo tranco list](https://github.com/DistriNet/tranco-list?tab=readme-ov-file)
+
+[Another repo for tranco](https://github.com/DistriNet/tranco-python-package)
