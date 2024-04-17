@@ -5,9 +5,9 @@ import re
 from playwright.sync_api import sync_playwright
 import matplotlib.pyplot as plt
 
-max_age_regex = r'\bmax-age=[0-9]+\b'
-include_subdomains_regex = "includeSubdomains"
-preload_regex = "preload"
+max_age_regex = r"^max-age=\d+$"
+include_subdomains_regex = r'(includeSubDomains|includeSubdomains)'
+preload_regex = r'preload'
 
 def fetch_hsts_policy(url, page):
     try:
@@ -24,24 +24,38 @@ def create_database_table(cursor):
     cursor.execute('''CREATE TABLE IF NOT EXISTS sites
                      (rank INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, HSTS BOOLEAN, max_age LONG, include_subdomains BOOLEAN, preload BOOLEAN, wrong_policy BOOLEAN)''')
 
-def check_max_age(hs_array):
+def check_error_max_age(hs_array):
+    return any(re.search(max_age_regex, element) for element in hs_array) if hs_array is not None else True
+
+def check_error_policies(hs_array):
+    max_age = check_error_max_age(hs_array)
+    include_subdomains = any(re.search(include_subdomains_regex, element) for element in hs_array) if hs_array is not None else True
+    preload = any(re.search(preload_regex, element) for element in hs_array) if hs_array is not None else True
+
     if hs_array is None:
         return False
-    elif hs_array[0] is not None and not re.fullmatch(max_age_regex, hs_array[0]):
-        return True
-    else:
-        return False
+    elif len(hs_array) == 1:
+        return not max_age
+    elif len(hs_array) == 3:
+        return not max_age or not include_subdomains or not preload
+    elif len(hs_array) == 2:
+        if hs_array[1] == "preload":
+            return not max_age or not preload
+        else:
+            return not max_age or not include_subdomains
+    print(max_age, include_subdomains, preload)
+    return True
 
 def insert_site_data(cursor, url, hs_array):
     try:
-        max_age_wrong = check_max_age(hs_array)
+        print(hs_array)
         cursor.execute("INSERT INTO sites (url, HSTS, max_age, include_subdomains, preload, wrong_policy) VALUES (?, ?, ?, ?, ?, ?)",
                        (url,
                         hs_array is not None,
-                        int(hs_array[0].split("=")[1]) if hs_array is not None and not max_age_wrong else None,
-                        include_subdomains_regex in hs_array if hs_array is not None else False,
-                        preload_regex in hs_array if hs_array is not None else False,
-                        max_age_wrong,))
+                        int(hs_array[0].split("=")[1]) if hs_array is not None and check_error_max_age(hs_array) else None,
+                        any(re.search(include_subdomains_regex, element) for element in hs_array) if hs_array is not None else False,
+                        any(re.search(preload_regex, element) for element in hs_array) if hs_array is not None else False,
+                        check_error_policies(hs_array),))
     except Exception as e:
         print(f"Error inserting data for {url}: {e}")
 
@@ -50,6 +64,7 @@ def scrape_and_insert_data(cursor, latest_list, page):
         url = "http://www." + domain if not domain.startswith("www.") else domain
         hs_array = fetch_hsts_policy(url, page)
         hs_array = [x.strip() for x in hs_array] if hs_array is not None else None
+        hs_array = list(filter(lambda x: x != "", hs_array)) if hs_array is not None else None
         insert_site_data(cursor, url, hs_array)
 
 def get_data(cursor):
