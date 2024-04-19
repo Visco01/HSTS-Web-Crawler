@@ -2,12 +2,19 @@ from tranco import Tranco
 import time
 import sqlite3
 import re
+import argparse
 from playwright.sync_api import sync_playwright
 import matplotlib.pyplot as plt
 
 max_age_regex = r"^max-age=\d+$"
 include_subdomains_regex = r'(includeSubDomains|includeSubdomains)'
 preload_regex = r'preload'
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Run crawler on specified browser.')
+    parser.add_argument('browser', metavar='BROWSER', type=str, choices=['chromium', 'firefox'], help='Browser type to run the crawler (chromium or firefox)')
+    args = parser.parse_args()
+    return args.browser
 
 def fetch_hsts_policy(url, page):
     try:
@@ -19,9 +26,9 @@ def fetch_hsts_policy(url, page):
         # print(f"Error collecting HSTS policy for {url}: {e}")
         return None
 
-def create_database_table(cursor):
-    cursor.execute('''DROP TABLE IF EXISTS sites''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS sites
+def create_database_table(cursor, browser_type):
+    cursor.execute(f'''DROP TABLE IF EXISTS {browser_type}''')
+    cursor.execute(f'''CREATE TABLE IF NOT EXISTS {browser_type}
                      (rank INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, HSTS BOOLEAN, max_age LONG, include_subdomains BOOLEAN, preload BOOLEAN, wrong_policy BOOLEAN)''')
 
 def check_error_max_age(hs_array):
@@ -46,10 +53,10 @@ def check_error_policies(hs_array):
     print(max_age, include_subdomains, preload)
     return True
 
-def insert_site_data(cursor, url, hs_array):
+def insert_site_data(cursor, url, hs_array, browser_type):
     try:
         print(hs_array)
-        cursor.execute("INSERT INTO sites (url, HSTS, max_age, include_subdomains, preload, wrong_policy) VALUES (?, ?, ?, ?, ?, ?)",
+        cursor.execute(f"INSERT INTO {browser_type} (url, HSTS, max_age, include_subdomains, preload, wrong_policy) VALUES (?, ?, ?, ?, ?, ?)",
                        (url,
                         hs_array is not None,
                         int(hs_array[0].split("=")[1]) if hs_array is not None and check_error_max_age(hs_array) else None,
@@ -59,16 +66,16 @@ def insert_site_data(cursor, url, hs_array):
     except Exception as e:
         print(f"Error inserting data for {url}: {e}")
 
-def scrape_and_insert_data(cursor, latest_list, page):
-    for domain in latest_list.top(100):
+def scrape_and_insert_data(cursor, latest_list, page, browser_type):
+    for domain in latest_list.top(10):
         url = "http://www." + domain if not domain.startswith("www.") else domain
         hs_array = fetch_hsts_policy(url, page)
         hs_array = [x.strip() for x in hs_array] if hs_array is not None else None
         hs_array = list(filter(lambda x: x != "", hs_array)) if hs_array is not None else None
-        insert_site_data(cursor, url, hs_array)
+        insert_site_data(cursor, url, hs_array, browser_type)
 
-def get_data(cursor):
-    cursor.execute("""
+def get_data(cursor, browser_type):
+    cursor.execute(f"""
         SELECT 
             COUNT(*) AS total_entries,
             SUM(CASE WHEN HSTS = 1 THEN 1 ELSE 0 END) AS hsts_true_entries,
@@ -76,7 +83,7 @@ def get_data(cursor):
             SUM(CASE WHEN preload = 1 THEN 1 ELSE 0 END) AS preload_true_entries,
             SUM(CASE WHEN wrong_policy = 1 THEN 1 ELSE 0 END) AS wrong_policy_true_entries
         FROM 
-            sites
+            {browser_type}
     """)
 
     results = cursor.fetchone()
@@ -96,8 +103,8 @@ def plot_pie_chart(labels, sizes, title):
     plt.title(title)
     plt.savefig(title + ".png")
 
-def analyze(cursor):
-    total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries = get_data(cursor)
+def analyze(cursor, browser_type):
+    total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries = get_data(cursor, browser_type)
 
     hsts_labels = 'HSTS Inactive', 'HSTS Active'
     hsts_sizes = [total_entries - hsts_true_entries, hsts_true_entries]
@@ -114,6 +121,7 @@ def analyze(cursor):
     plot_pie_chart(pi_labels, pi_sizes, 'Preload or Include Subdomains')
 
 def main():
+    browser_type = parse_arguments()
     start = time.time()
 
     # Initialize Tranco
@@ -125,21 +133,24 @@ def main():
     c = conn.cursor()
 
     # Create database table
-    create_database_table(c)
+    create_database_table(c, browser_type)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        if browser_type == 'chromium':
+            browser = p.chromium.launch()
+        else:
+            browser = p.firefox.launch()
         context = browser.new_context()
         page = context.new_page()
         
         # Scrape and insert data into database
-        scrape_and_insert_data(c, latest_list, page)
+        scrape_and_insert_data(c, latest_list, page, browser_type)
 
     # Commit changes and close connection
     conn.commit()
 
     # Analyze the data and plot pie charts
-    analyze(c)
+    analyze(c, browser_type)
 
     conn.close()
 
