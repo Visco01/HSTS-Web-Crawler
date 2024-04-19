@@ -108,7 +108,7 @@ def analyze(cursor, browser_type):
 
     hsts_labels = 'HSTS Inactive', 'HSTS Active'
     hsts_sizes = [total_entries - hsts_true_entries, hsts_true_entries]
-    plot_pie_chart(hsts_labels, hsts_sizes, 'HSTS Status')
+    plot_pie_chart(hsts_labels, hsts_sizes, f'{browser_type} - HSTS Status')
 
     pi_labels = 'Neither', 'Preload', 'Include Subdomains', 'Both', 'Wrong Policy'
     pi_sizes = [
@@ -118,7 +118,7 @@ def analyze(cursor, browser_type):
         wrong_policy_true_entries,
         min(preload_true_entries, include_subdomains_true_entries, wrong_policy_true_entries)
     ]
-    plot_pie_chart(pi_labels, pi_sizes, 'Preload or Include Subdomains')
+    plot_pie_chart(pi_labels, pi_sizes, f'{browser_type} - Preload or Include Subdomains')
 
 def main():
     browser_type = parse_arguments()
