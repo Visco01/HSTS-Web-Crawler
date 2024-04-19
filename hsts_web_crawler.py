@@ -124,10 +124,10 @@ def get_data(cursor, browser_type):
 
 def plot_pie_chart(labels, sizes, title):
     plt.figure(figsize=(6, 6))
-    plt.pie(sizes, autopct='%1.1f%%', startangle=90)
+    plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '', startangle=90)
     plt.axis('equal')
     plt.title(title)
-    plt.legend(labels, loc="best")
+    plt.legend(labels, loc="upper right", fontsize="small")
     plt.savefig(title + ".png")
 
 def plot_max_age_scatter_plot(all_max_age_values, title):
@@ -135,7 +135,6 @@ def plot_max_age_scatter_plot(all_max_age_values, title):
     ax.scatter(range(len(all_max_age_values)), all_max_age_values, color='black', marker='o')
     ax.hlines(31536000, 0, len(all_max_age_values), colors='r', linestyles='dashed')
     ax.fill_between(range(len(all_max_age_values)), 0, 31536000, color='red', alpha=0.1)
-    plt.show()
     plt.savefig(title + ".png")
 
 def plot_max_age_histogram(acceptable_max_age_values, title):
@@ -157,6 +156,7 @@ def analyze(cursor, browser_type):
         min(preload_true_entries, include_subdomains_true_entries, wrong_policy_true_entries)
     ]
     plot_pie_chart(pi_labels, pi_sizes, f'{browser_type} - Preload or Include Subdomains')
+    plot_max_age_scatter_plot(all_max_age_values, f'{browser_type} - max-age values')
 
 def main():
     browser_type = parse_arguments()
