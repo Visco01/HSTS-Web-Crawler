@@ -12,7 +12,7 @@ preload_regex = r'preload'
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Run crawler on specified browser.')
-    parser.add_argument('browser', metavar='BROWSER', type=str, choices=['chromium', 'firefox'], help='Browser type to run the crawler (chromium or firefox)')
+    parser.add_argument('browser', metavar='BROWSER', type=str, choices=['chromium', 'firefox', 'msedge', 'chrome', 'webkit'], help='Browser type to run the crawler (chromium or firefox)')
     args = parser.parse_args()
     return args.browser
 
