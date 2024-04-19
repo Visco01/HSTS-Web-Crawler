@@ -133,9 +133,16 @@ def plot_pie_chart(labels, sizes, title):
 def plot_max_age_scatter_plot(all_max_age_values, title):
     fig, ax = plt.subplots()
     ax.scatter(range(len(all_max_age_values)), all_max_age_values, color='black', marker='o')
-    ax.hlines(31536000, 0, len(all_max_age_values), colors='r', linestyles='dashed')
+    ax.hlines(31536000, 0, len(all_max_age_values)-1, colors='r', linestyles='dashed')
     ax.fill_between(range(len(all_max_age_values)), 0, 31536000, color='red', alpha=0.1)
+   
+    x_padding = 0.05 * len(all_max_age_values)  
+    y_padding = 0.05 * max(all_max_age_values) 
+    ax.set_xlim(-x_padding, len(all_max_age_values)-1 + x_padding)
+    ax.set_ylim(-y_padding, max(all_max_age_values) + y_padding)
+    
     plt.savefig(title + ".png")
+    plt.close()
 
 def plot_max_age_histogram(acceptable_max_age_values, title):
     pass
