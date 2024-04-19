@@ -94,17 +94,55 @@ def get_data(cursor, browser_type):
     preload_true_entries = results[3]
     wrong_policy_true_entries = results[4]
 
-    return total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries
+    cursor.execute(f"""
+        SELECT
+            max_age
+        FROM
+            {browser_type}
+        WHERE
+            max_age IS NOT NULL
+    """)
+
+    results = cursor.fetchall()
+
+    all_max_age_values = [result[0] for result in results]
+
+    cursor.execute(f"""
+        SELECT
+            max_age
+        FROM
+            {browser_type}
+        WHERE
+            max_age IS NOT NULL AND max_age > 31536000
+    """)
+
+    results = cursor.fetchall()
+
+    acceptable_max_age_values = [result[0] for result in results]
+
+    return total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries, all_max_age_values, acceptable_max_age_values
 
 def plot_pie_chart(labels, sizes, title):
     plt.figure(figsize=(6, 6))
-    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    plt.pie(sizes, autopct='%1.1f%%', startangle=90)
     plt.axis('equal')
     plt.title(title)
+    plt.legend(labels, loc="best")
     plt.savefig(title + ".png")
 
+def plot_max_age_scatter_plot(all_max_age_values, title):
+    fig, ax = plt.subplots()
+    ax.scatter(range(len(all_max_age_values)), all_max_age_values, color='black', marker='o')
+    ax.hlines(31536000, 0, len(all_max_age_values), colors='r', linestyles='dashed')
+    ax.fill_between(range(len(all_max_age_values)), 0, 31536000, color='red', alpha=0.1)
+    plt.show()
+    plt.savefig(title + ".png")
+
+def plot_max_age_histogram(acceptable_max_age_values, title):
+    pass
+
 def analyze(cursor, browser_type):
-    total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries = get_data(cursor, browser_type)
+    total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries, all_max_age_values, acceptable_max_age_values = get_data(cursor, browser_type)
 
     hsts_labels = 'HSTS Inactive', 'HSTS Active'
     hsts_sizes = [total_entries - hsts_true_entries, hsts_true_entries]
