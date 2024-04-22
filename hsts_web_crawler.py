@@ -31,7 +31,7 @@ def fetch_hsts_policy(url, page):
 def create_database_table(cursor, browser_type):
     cursor.execute(f'''DROP TABLE IF EXISTS {browser_type}''')
     cursor.execute(f'''CREATE TABLE IF NOT EXISTS {browser_type}
-                     (rank INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, HSTS BOOLEAN, max_age LONG, include_subdomains BOOLEAN, preload BOOLEAN, wrong_policy BOOLEAN)''')
+                     (rank INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, HSTS BOOLEAN, max_age LONG, include_subdomains BOOLEAN, preload BOOLEAN, wrong_policy TEXT)''')
 
 def check_error_max_age(hs_array):
     return any(re.search(max_age_regex, element) for element in hs_array) if hs_array is not None else True
@@ -52,19 +52,20 @@ def check_error_policies(hs_array):
             return not max_age or not preload
         else:
             return not max_age or not include_subdomains
-    print(max_age, include_subdomains, preload)
+    # print(max_age, include_subdomains, preload)
     return True
 
 def insert_site_data(cursor, url, hs_array, browser_type):
     try:
-        print(hs_array)
+        wrong_policy = ", ".join(hs_array) if check_error_policies(hs_array) else None
+        # print(hs_array)
         cursor.execute(f"INSERT INTO {browser_type} (url, HSTS, max_age, include_subdomains, preload, wrong_policy) VALUES (?, ?, ?, ?, ?, ?)",
                        (url,
                         hs_array is not None,
                         int(hs_array[0].split("=")[1]) if hs_array is not None and check_error_max_age(hs_array) else None,
                         any(re.search(include_subdomains_regex, element) for element in hs_array) if hs_array is not None else False,
                         any(re.search(preload_regex, element) for element in hs_array) if hs_array is not None else False,
-                        check_error_policies(hs_array),))
+                        wrong_policy,))
     except Exception as e:
         print(f"Error inserting data for {url}: {e}")
 
@@ -74,7 +75,8 @@ def scrape_and_insert_data(cursor, latest_list, page, browser_type):
         hs_array = fetch_hsts_policy(url, page)
         hs_array = [x.strip() for x in hs_array] if hs_array is not None else None
         hs_array = list(filter(lambda x: x != "", hs_array)) if hs_array is not None else None
-        insert_site_data(cursor, url, hs_array, browser_type)
+        if hs_array is not None:
+            insert_site_data(cursor, url, hs_array, browser_type)
 
 def get_data(cursor, browser_type):
     cursor.execute(f"""
@@ -125,12 +127,18 @@ def get_data(cursor, browser_type):
     return total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries, all_max_age_values, acceptable_max_age_values
 
 def plot_pie_chart(labels, sizes, title):
-    plt.figure(figsize=(6, 6))
-    plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '', startangle=90)
-    plt.axis('equal')
+    plt.figure(figsize=(8, 8))
+    plt.pie(sizes, labels=labels, autopct=lambda p: '{:.1f}%'.format(p) if p > 1 else '', startangle=90, wedgeprops=dict(width=0.3))
     plt.title(title)
-    plt.legend(labels, loc="upper right", fontsize="small")
+    plt.axis('equal')
+    plt.legend(loc="upper right", fontsize="small")
     plt.savefig(title + ".png")
+    # plt.figure(figsize=(6, 6))
+    # plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '', startangle=90)
+    # plt.axis('equal')
+    # plt.title(title)
+    # plt.legend(labels, loc="upper right", fontsize="small")
+    # plt.savefig(title + ".png")
 
 def plot_max_age_scatter_plot(all_max_age_values, title):
     fig, ax = plt.subplots()
@@ -141,13 +149,23 @@ def plot_max_age_scatter_plot(all_max_age_values, title):
     x_padding = 0.05 * len(all_max_age_values)  
     y_padding = 0.05 * max(all_max_age_values) 
     ax.set_xlim(-x_padding, len(all_max_age_values)-1 + x_padding)
-    ax.set_ylim(-y_padding, max(all_max_age_values) + y_padding)
+    ax.set_ylim(0.1, max(all_max_age_values) + y_padding)  # Set minimum y value to 0.1 for log scale
+
+    ax.set_yscale('log')
     
+    plt.title(title)
     plt.savefig(title + ".png")
     plt.close()
 
 def plot_max_age_histogram(acceptable_max_age_values, title):
-    pass
+    plt.figure()
+    plt.hist(acceptable_max_age_values, bins=10, color='blue', edgecolor='black')
+    plt.xlabel('Max Age Values')
+    plt.ylabel('Frequency')
+    plt.title(title)
+    plt.savefig(title + "_histogram.png")
+    plt.close()
+
 
 def analyze(cursor, browser_type):
     total_entries, hsts_true_entries, include_subdomains_true_entries, preload_true_entries, wrong_policy_true_entries, all_max_age_values, acceptable_max_age_values = get_data(cursor, browser_type)
@@ -166,6 +184,7 @@ def analyze(cursor, browser_type):
     ]
     plot_pie_chart(pi_labels, pi_sizes, f'{browser_type} - Preload or Include Subdomains')
     plot_max_age_scatter_plot(all_max_age_values, f'{browser_type} - max-age values')
+    plot_max_age_histogram(acceptable_max_age_values, f'{browser_type} - max-age istogram')
 
 def main():
     browser_type = parse_arguments()
@@ -185,7 +204,7 @@ def main():
     with sync_playwright() as p:
         if browser_type == 'chromium':
             browser = p.chromium.launch()
-        elif browser_type == 'firefox':
+        else browser_type == 'firefox':
             browser = p.firefox.launch()
         else:
             browser = p.webkit.launch()
@@ -199,7 +218,6 @@ def main():
     conn.commit()
 
     # Analyze the data and plot pie charts
-    analyze(c, browser_type)
 
     conn.close()
 
