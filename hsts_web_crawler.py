@@ -6,7 +6,7 @@ import argparse
 from playwright.sync_api import sync_playwright
 import matplotlib.pyplot as plt
 
-N_SITES = 5
+N_SITES = 1000
 
 max_age_regex = r"^max-age=\d+$"
 include_subdomains_regex = r'(includeSubDomains|includeSubdomains)'
@@ -204,7 +204,7 @@ def main():
     with sync_playwright() as p:
         if browser_type == 'chromium':
             browser = p.chromium.launch()
-        else browser_type == 'firefox':
+        elif browser_type == 'firefox':
             browser = p.firefox.launch()
         else:
             browser = p.webkit.launch()
