@@ -23,10 +23,10 @@ def fetch_hsts_policy(url, page):
         response = page.goto(url)
         hs = response.headers.get("strict-transport-security")
         hs_array = hs.split(";") if hs is not None else None
-        return hs_array
+        return hs_array, 1
     except Exception as e:
         # print(f"Error collecting HSTS policy for {url}: {e}")
-        return None
+        return None, -1
 
 def create_database_table(cursor, browser_type):
     cursor.execute(f'''DROP TABLE IF EXISTS {browser_type}''')
@@ -72,10 +72,10 @@ def insert_site_data(cursor, url, hs_array, browser_type):
 def scrape_and_insert_data(cursor, latest_list, page, browser_type):
     for domain in latest_list.top(N_SITES):
         url = "http://www." + domain if not domain.startswith("www.") else domain
-        hs_array = fetch_hsts_policy(url, page)
+        hs_array, status = fetch_hsts_policy(url, page)
         hs_array = [x.strip() for x in hs_array] if hs_array is not None else None
         hs_array = list(filter(lambda x: x != "", hs_array)) if hs_array is not None else None
-        if hs_array is not None:
+        if status != -1:
             insert_site_data(cursor, url, hs_array, browser_type)
 
 def get_data(cursor, browser_type):
@@ -85,7 +85,7 @@ def get_data(cursor, browser_type):
             SUM(CASE WHEN HSTS = 1 THEN 1 ELSE 0 END) AS hsts_true_entries,
             SUM(CASE WHEN include_subdomains = 1 THEN 1 ELSE 0 END) AS include_subdomains_true_entries,
             SUM(CASE WHEN preload = 1 THEN 1 ELSE 0 END) AS preload_true_entries,
-            SUM(CASE WHEN wrong_policy = 1 THEN 1 ELSE 0 END) AS wrong_policy_true_entries
+            SUM(CASE WHEN wrong_policy IS NOT NULL THEN 1 ELSE 0 END) AS wrong_policy_true_entries
         FROM 
             {browser_type}
     """)
@@ -218,6 +218,7 @@ def main():
     conn.commit()
 
     # Analyze the data and plot pie charts
+    analyze(c, browser_type)
 
     conn.close()
 
