@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright
 import matplotlib.pyplot as plt
 
 N_SITES = 1000
+OUT_DIR = "img/"
 
 max_age_regex = r"^max-age=\d+$"
 include_subdomains_regex = r'(includeSubDomains|includeSubdomains)'
@@ -132,7 +133,7 @@ def plot_pie_chart(labels, sizes, title):
     plt.title(title)
     plt.axis('equal')
     plt.legend(loc="upper right", fontsize="small")
-    plt.savefig(title + ".png")
+    plt.savefig(OUT_DIR + title + ".png")
     # plt.figure(figsize=(6, 6))
     # plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '', startangle=90)
     # plt.axis('equal')
@@ -154,7 +155,7 @@ def plot_max_age_scatter_plot(all_max_age_values, title):
     ax.set_yscale('log')
     
     plt.title(title)
-    plt.savefig(title + ".png")
+    plt.savefig(OUT_DIR + title + ".png")
     plt.close()
 
 def plot_max_age_histogram(acceptable_max_age_values, title):
@@ -163,7 +164,7 @@ def plot_max_age_histogram(acceptable_max_age_values, title):
     plt.xlabel('Max Age Values')
     plt.ylabel('Frequency')
     plt.title(title)
-    plt.savefig(title + "_histogram.png")
+    plt.savefig(OUT_DIR + title + "_histogram.png")
     plt.close()
 
 
