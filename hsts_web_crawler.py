@@ -6,13 +6,15 @@ import argparse
 from playwright.sync_api import sync_playwright
 import matplotlib.pyplot as plt
 
+N_SITES = 5
+
 max_age_regex = r"^max-age=\d+$"
 include_subdomains_regex = r'(includeSubDomains|includeSubdomains)'
 preload_regex = r'preload'
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Run crawler on specified browser.')
-    parser.add_argument('browser', metavar='BROWSER', type=str, choices=['chromium', 'firefox', 'msedge', 'chrome', 'webkit'], help='Browser type to run the crawler (chromium or firefox)')
+    parser.add_argument('browser', metavar='BROWSER', type=str, choices=['chromium', 'firefox', 'webkit'], help='Browser type to run the crawler (chromium or firefox)')
     args = parser.parse_args()
     return args.browser
 
@@ -67,7 +69,7 @@ def insert_site_data(cursor, url, hs_array, browser_type):
         print(f"Error inserting data for {url}: {e}")
 
 def scrape_and_insert_data(cursor, latest_list, page, browser_type):
-    for domain in latest_list.top(10):
+    for domain in latest_list.top(N_SITES):
         url = "http://www." + domain if not domain.startswith("www.") else domain
         hs_array = fetch_hsts_policy(url, page)
         hs_array = [x.strip() for x in hs_array] if hs_array is not None else None
@@ -183,8 +185,10 @@ def main():
     with sync_playwright() as p:
         if browser_type == 'chromium':
             browser = p.chromium.launch()
-        else:
+        elif browser_type == 'firefox':
             browser = p.firefox.launch()
+        else:
+            browser = p.webkit.launch()
         context = browser.new_context()
         page = context.new_page()
         
