@@ -129,10 +129,10 @@ def get_data(cursor, browser_type):
 
 def plot_pie_chart(labels, sizes, title):
     plt.figure(figsize=(8, 8))
-    plt.pie(sizes, labels=labels, autopct=lambda p: '{:.1f}%'.format(p) if p > 1 else '', startangle=90, wedgeprops=dict(width=0.3))
+    plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(p) if p > 1 else '', startangle=90, pctdistance=0.85, wedgeprops=dict(width=0.3))
     plt.title(title)
     plt.axis('equal')
-    plt.legend(loc="upper right", fontsize="small")
+    plt.legend(labels=labels, loc="upper right", fontsize="small")
     plt.savefig(OUT_DIR + title + ".png")
     # plt.figure(figsize=(6, 6))
     # plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '', startangle=90)
