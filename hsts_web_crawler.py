@@ -26,11 +26,10 @@ def fetch_hsts_policy(url, page):
         hs_array = hs.split(";") if hs is not None else None
         return hs_array, 1
     except Exception as e:
-        # print(f"Error collecting HSTS policy for {url}: {e}")
         return None, -1
 
 def create_database_table(cursor, browser_type):
-    cursor.execute(f'''DROP TABLE IF EXISTS {browser_type}''')
+    # cursor.execute(f'''DROP TABLE IF EXISTS {browser_type}''')
     cursor.execute(f'''CREATE TABLE IF NOT EXISTS {browser_type}
                      (rank INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT, HSTS BOOLEAN, max_age LONG, include_subdomains BOOLEAN, preload BOOLEAN, wrong_policy TEXT)''')
 
@@ -53,13 +52,11 @@ def check_error_policies(hs_array):
             return not max_age or not preload
         else:
             return not max_age or not include_subdomains
-    # print(max_age, include_subdomains, preload)
     return True
 
 def insert_site_data(cursor, url, hs_array, browser_type):
     try:
         wrong_policy = ", ".join(hs_array) if check_error_policies(hs_array) else None
-        # print(hs_array)
         cursor.execute(f"INSERT INTO {browser_type} (url, HSTS, max_age, include_subdomains, preload, wrong_policy) VALUES (?, ?, ?, ?, ?, ?)",
                        (url,
                         hs_array is not None,
@@ -68,7 +65,7 @@ def insert_site_data(cursor, url, hs_array, browser_type):
                         any(re.search(preload_regex, element) for element in hs_array) if hs_array is not None else False,
                         wrong_policy,))
     except Exception as e:
-        print(f"Error inserting data for {url}: {e}")
+        print(f"{url} already present in db: {e}")
 
 def scrape_and_insert_data(cursor, latest_list, page, browser_type):
     for domain in latest_list.top(N_SITES):
@@ -134,12 +131,6 @@ def plot_pie_chart(labels, sizes, title):
     plt.axis('equal')
     plt.legend(labels=labels, loc="upper right", fontsize="small")
     plt.savefig(OUT_DIR + title + ".png")
-    # plt.figure(figsize=(6, 6))
-    # plt.pie(sizes, autopct=lambda p: '{:.1f}%'.format(round(p)) if p > 0 else '', startangle=90)
-    # plt.axis('equal')
-    # plt.title(title)
-    # plt.legend(labels, loc="upper right", fontsize="small")
-    # plt.savefig(title + ".png")
 
 def plot_max_age_scatter_plot(all_max_age_values, title):
     fig, ax = plt.subplots()
@@ -150,7 +141,7 @@ def plot_max_age_scatter_plot(all_max_age_values, title):
     x_padding = 0.05 * len(all_max_age_values)  
     y_padding = 0.05 * max(all_max_age_values) 
     ax.set_xlim(-x_padding, len(all_max_age_values)-1 + x_padding)
-    ax.set_ylim(0.1, max(all_max_age_values) + y_padding)  # Set minimum y value to 0.1 for log scale
+    ax.set_ylim(0.1, max(all_max_age_values) + y_padding)
 
     ax.set_yscale('log')
     
@@ -191,15 +182,12 @@ def main():
     browser_type = parse_arguments()
     start = time.time()
 
-    # Initialize Tranco
     t = Tranco(cache=True, cache_dir='.tranco')
     latest_list = t.list()
 
-    # Connect to database
     conn = sqlite3.connect('tranco_sites.sqlite')
     c = conn.cursor()
 
-    # Create database table
     create_database_table(c, browser_type)
 
     with sync_playwright() as p:
@@ -211,14 +199,10 @@ def main():
             browser = p.webkit.launch()
         context = browser.new_context()
         page = context.new_page()
-        
-        # Scrape and insert data into database
         scrape_and_insert_data(c, latest_list, page, browser_type)
 
-    # Commit changes and close connection
     conn.commit()
 
-    # Analyze the data and plot pie charts
     analyze(c, browser_type)
 
     conn.close()
